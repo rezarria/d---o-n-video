@@ -1,0 +1,6 @@
+@dudoan_HostAddress = http://localhost:5189
+
+GET {{dudoan_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
