@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddAuthorization();
+builder.Services.AddRouting(options => options.LowercaseUrls = true);
 builder.Services.AddDbContext<AppDbContext>(opt =>
 {
     opt.UseSqlite(builder.Configuration.GetConnectionString("sqlite"));
@@ -18,9 +19,11 @@ builder.Services.AddIdentityApiEndpoints<IdentityUser>()
     .AddEntityFrameworkStores<IdentityDbContext>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddSingleton<IMLService, MLService>();
+builder.Services.AddControllers();
+builder.Services.AddSingleton<MLService, MLService>();
 
 var app = builder.Build();
+app.UseCors("AllowAllOrigins");
 app.MapIdentityApi<IdentityUser>();
 if (app.Environment.IsDevelopment())
 {
@@ -28,5 +31,5 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.MapControllers();
 app.Run();

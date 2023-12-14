@@ -13,12 +13,18 @@ namespace Dudoan.MML;
 public class MLService : IMLService
 {
     private readonly IServiceProvider serviceProvider;
-    private MLContext mLContext;
-    private TransformerChain<MatrixFactorizationPredictionTransformer> model;
+    private MLContext mLContext = new();
+
+    private ITransformer trainedModel;
 
     public MLService(IServiceProvider serviceProvider)
     {
         this.serviceProvider = serviceProvider;
+    }
+
+    public void loadFromStorage()
+    {
+        trainedModel = mLContext.Model.Load(Path.Combine(Environment.CurrentDirectory, "Data", "VideoModel.zip"), out var modelSchema);
     }
 
     public void loadFromDB()
@@ -48,11 +54,11 @@ public class MLService : IMLService
                 }).ToList()
             }).ToList()
         }));
-        Train(data);
+        var model = Train(data);
         mLContext.Model.Save(model, data.Schema, Path.Combine(Environment.CurrentDirectory, "Data", "VideoModel.zip"));
     }
 
-    public void Train(IDataView data)
+    private TransformerChain<MatrixFactorizationPredictionTransformer> Train(IDataView data)
     {
         var options = new MatrixFactorizationTrainer.Options
         {
@@ -71,7 +77,8 @@ public class MLService : IMLService
             .Append(mLContext.Transforms.Conversion.MapValueToKey("Likes", nameof(Video.Likes)))
             .Append(mLContext.Transforms.Conversion.MapValueToKey("Watches", nameof(Video.Watches)))
             .Append(mLContext.Recommendation().Trainers.MatrixFactorization(options));
-        model = pipeline.Fit(data);
+            
+        return pipeline.Fit(data);
     }
 
     public class MatrixStruct
@@ -84,15 +91,19 @@ public class MLService : IMLService
 
     public List<Guid> Recommendation(MLModel input)
     {
-        var inputVideoData = mLContext.Data.LoadFromEnumerable(new List<MLModel> { input });
-        var predictions = model.Transform(inputVideoData);
+        var inputData = mLContext.Data.LoadFromEnumerable(new List<MLModel> { input });
+
+        var predictions = trainedModel.Transform(inputData);
+
         var predictionEnumerable = mLContext.Data.CreateEnumerable<MatrixStruct>(predictions, reuseRowObject: false);
-        var videos = predictionEnumerable.OrderByDescending(prediction => prediction.Ratio)
-    .Take(5)
-    .Select(prediction => prediction.VideoId1);
-        return videos.ToList();
+
+        var top5Videos = predictionEnumerable
+            .OrderByDescending(prediction => prediction.Ratio)
+            .Take(5)
+            .Select(prediction => prediction.VideoId1)
+            .ToList();
+
+        return top5Videos;
     }
-
-
 
 }
